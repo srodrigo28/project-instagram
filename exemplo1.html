@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini Instagram com Supabase</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center">
+  <header class="w-full bg-white shadow p-4 text-center text-2xl font-bold text-gray-700">
+    📸 Mini Instagram - Supabase Demo
+  </header>
+
+  <main id="feed" class="w-full max-w-md mt-6 space-y-6 px-4"></main>
+
+  <script type="module">
+    // ================================
+    // 🔗 1. Inicialização do Supabase
+    // ================================
+    const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
+    const SUPABASE_KEY = "SUA-CHAVE-ANON";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Simula usuário logado (id 1 - Ana)
+    const CURRENT_USER_ID = 1;
+
+    // ================================
+    // 🖼️ 2. Função para carregar o feed
+    // ================================
+    async function loadFeed() {
+      const { data: posts, error } = await supabase
+        .from("posts")
+        .select("id, caption, image_url, users(username), post_stats(total_likes, total_comments)")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao carregar posts:", error);
+        return;
+      }
+
+      const feed = document.getElementById("feed");
+      feed.innerHTML = "";
+
+      posts.forEach((post) => {
+        const postCard = document.createElement("div");
+        postCard.className = "bg-white rounded-lg shadow overflow-hidden";
+
+        postCard.innerHTML = `
+          <div class="p-3 font-semibold text-gray-800">@${post.users.username}</div>
+          <img src="${post.image_url}" class="w-full h-64 object-cover" />
+          <div class="p-3">
+            <p class="text-gray-700">${post.caption || ""}</p>
+
+            <div class="flex items-center justify-between mt-3 text-gray-600">
+              <button class="like-btn flex items-center space-x-1" data-post="${post.id}">
+                ❤️ <span class="like-count">${post.post_stats?.total_likes || 0}</span>
+              </button>
+
+              <div>💬 ${post.post_stats?.total_comments || 0}</div>
+            </div>
+          </div>
+        `;
+
+        feed.appendChild(postCard);
+      });
+
+      attachLikeEvents();
+    }
+
+    // ================================
+    // ❤️ 3. Dar / remover like (toggle)
+    // ================================
+    async function toggleLike(postId) {
+      const { data, error } = await supabase
+        .from("likes")
+        .select()
+        .eq("user_id", CURRENT_USER_ID)
+        .eq("post_id", postId)
+        .single();
+
+      if (data) {
+        // Se já curtiu → remove like
+        await supabase.from("likes").delete().eq("user_id", CURRENT_USER_ID).eq("post_id", postId);
+      } else {
+        // Se ainda não curtiu → adiciona like
+        await supabase.from("likes").insert([{ user_id: CURRENT_USER_ID, post_id: postId }]);
+      }
+
+      loadFeed(); // atualiza contadores
+    }
+
+    // ================================
+    // ⚙️ 4. Liga os botões de like
+    // ================================
+    function attachLikeEvents() {
+      document.querySelectorAll(".like-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const postId = btn.getAttribute("data-post");
+          await toggleLike(postId);
+        });
+      });
+    }
+
+    // ================================
+    // 🚀 5. Inicia a aplicação
+    // ================================
+    loadFeed();
+  </script>
+</body>
+</html>
