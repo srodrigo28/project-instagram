@@ -4,6 +4,8 @@
 CREATE TABLE users (
   id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, -- Usando bigint para escalabilidade
   username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  phone TEXT, NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() -- Usando timestamp com fuso horário
 );
 
@@ -64,9 +66,9 @@ GROUP BY p.id, p.caption, p.image_url, p.user_id;
 -- 📈 6. Exemplos de inserção de dados
 -- =====================================================
 INSERT INTO users (username) VALUES
-  ('ana_dev'),
-  ('joao_js'),
-  ('maria_sql');
+  ('ana_dev', 'ana_dev@gmail.com', '62 9988-7744', ),
+  ('joao_js', 'joao_js@gmail.com', '11 9812-4030'),
+  ('maria_sql', 'maria_sql@gmail.com', '51 9992-3357'),
 
 INSERT INTO posts (user_id, image_url, caption) VALUES
   (1, 'https://picsum.photos/200', 'Meu primeiro post!'),
