@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rede Social Simulada</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+  <div class="max-w-2xl mx-auto p-4 space-y-6">
+
+    <!-- Header -->
+    <header class="bg-white rounded-lg shadow p-4">
+      <h1 class="text-2xl font-bold text-primary">Mini Rede Social</h1>
+      <p class="text-sm text-gray-600">Simulação com localStorage + Tailwind</p>
+    </header>
+
+    <!-- Criar Post -->
+    <section class="bg-white rounded-lg shadow p-4">
+      <h2 class="text-lg font-semibold mb-3">Novo Post</h2>
+      <form id="postForm" class="space-y-3">
+        <input type="hidden" id="postUserId" value="1">
+        <input 
+          type="text" 
+          id="imageUrl" 
+          placeholder="URL da imagem (ex: https://picsum.photos/200)" 
+          class="w-full p-2 border rounded-md text-sm"
+          required
+        />
+        <textarea 
+          id="caption" 
+          placeholder="O que você está pensando?" 
+          class="w-full p-2 border rounded-md text-sm h-20 resize-none"
+        ></textarea>
+        <button 
+          type="submit" 
+          class="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-600 transition"
+        >
+          Publicar
+        </button>
+      </form>
+    </section>
+
+    <!-- Feed -->
+    <section id="feed" class="space-y-6">
+      <h2 class="text-lg font-semibold">Feed</h2>
+      <!-- Posts serão inseridos aqui via JS -->
+    </section>
+
+  </div>
+
+  <!-- Modal de Curtidas -->
+  <div id="likesModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+      <h3 class="text-lg font-bold mb-3">Quem curtiu</h3>
+      <ul id="likesList" class="space-y-2 mb-4"></ul>
+      <button onclick="closeModal()" class="text-sm text-primary hover:underline">Fechar</button>
+    </div>
+  </div>
+
+  <script>
+    // =====================================================
+    // 🧠 SIMULAÇÃO DO BANCO DE DADOS (localStorage)
+    // =====================================================
+    const DB = {
+      users: JSON.parse(localStorage.getItem('users')) || [],
+      posts: JSON.parse(localStorage.getItem('posts')) || [],
+      likes: JSON.parse(localStorage.getItem('likes')) || [],
+      comments: JSON.parse(localStorage.getItem('comments')) || [],
+
+      save() {
+        localStorage.setItem('users', JSON.stringify(this.users));
+        localStorage.setItem('posts', JSON.stringify(this.posts));
+        localStorage.setItem('likes', JSON.stringify(this.likes));
+        localStorage.setItem('comments', JSON.stringify(this.comments));
+      },
+
+      getUser(id) {
+        return this.users.find(u => u.id === id);
+      },
+
+      getPost(id) {
+        return this.posts.find(p => p.id === id);
+      },
+
+      getLikes(postId) {
+        return this.likes.filter(l => l.post_id === postId);
+      },
+
+      getComments(postId) {
+        return this.comments.filter(c => c.post_id === postId);
+      },
+
+      // View: post_stats
+      getPostStats() {
+        return this.posts.map(post => {
+          const total_likes = this.getLikes(post.id).length;
+          const total_comments = this.getComments(post.id).length;
+          return { ...post, total_likes, total_comments };
+        });
+      }
+    };
+
+    // Inicializa com dados de exemplo se vazio
+    if (DB.users.length === 0) {
+      DB.users = [
+        { id: 1, username: 'ana_dev', email: 'ana_dev@gmail.com', phone: '62 9988-7744', created_at: new Date() },
+        { id: 2, username: 'joao_js', email: 'joao_js@gmail.com', phone: '11 9812-4030', created_at: new Date() },
+        { id: 3, username: 'maria_sql', email: 'maria_sql@gmail.com', phone: '51 9992-3357', created_at: new Date() }
+      ];
+      DB.posts = [
+        { id: 1, user_id: 1, image_url: 'https://picsum.photos/200', caption: 'Meu primeiro post!', created_at: new Date() },
+        { id: 2, user_id: 2, image_url: 'https://picsum.photos/201', caption: 'Aprendendo Supabase!', created_at: new Date() },
+        { id: 3, user_id: 3, image_url: 'https://picsum.photos/202', caption: 'SQL é top!', created_at: new Date() }
+      ];
+      DB.likes = [
+        { user_id: 1, post_id: 2, created_at: new Date() },
+        { user_id: 2, post_id: 1, created_at: new Date() },
+        { user_id: 3, post_id: 1, created_at: new Date() },
+        { user_id: 1, post_id: 3, created_at: new Date() }
+      ];
+      DB.comments = [
+        { id: 1, user_id: 2, post_id: 1, content: 'Show!', created_at: new Date() },
+        { id: 2, user_id: 3, post_id: 1, content: '👏👏', created_at: new Date() },
+        { id: 3, user_id: 1, post_id: 2, content: 'Muito bom!', created_at: new Date() }
+      ];
+      DB.save();
+    }
+
+    // =====================================================
+    // 🎨 RENDERIZAÇÃO DO FEED
+    // =====================================================
+    function renderFeed() {
+      const feed = document.getElementById('feed');
+      const stats = DB.getPostStats().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      feed.innerHTML = '<h2 class="text-lg font-semibold mb-4">Feed</h2>' + stats.map(post => {
+        const author = DB.getUser(post.user_id);
+        const userLiked = DB.getLikes(post.id).some(l => l.user_id === 1); // usuário logado = 1
+
+        return `
+          <article class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="p-4 border-b">
+              <div class="flex items-center gap-2">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full"></div>
+                <div>
+                  <p class="font-medium text-sm">${author.username}</p>
+                  <p class="text-xs text-gray-500">${formatDate(post.created_at)}</p>
+                </div>
+              </div>
+            </div>
+
+            <img src="${post.image_url}" alt="Post" class="w-full h-64 object-cover">
+
+            <div class="p-4 space-y-3">
+              <p class="font-medium">${post.caption || ''}</p>
+
+              <div class="flex items-center gap-4 text-sm">
+                <button 
+                  onclick="toggleLike(${post.id})" 
+                  class="flex items-center gap-1 ${userLiked ? 'text-red-500' : 'text-gray-600'} hover:text-red-500 transition">
+                  <svg class="w-5 h-5 ${userLiked ? 'fill-current' : ''}" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                  <span>${post.total_likes}</span>
+                </button>
+
+                <button 
+                  onclick="showLikes(${post.id})" 
+                  class="text-gray-600 hover:text-primary text-xs">
+                  ver curtidas
+                </button>
+
+                <div class="flex items-center gap-1 text-gray-600">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                  </svg>
+                  <span>${post.total_comments}</span>
+                </div>
+              </div>
+
+              <!-- Comentários -->
+              <div class="space-y-2 pt-2 border-t">
+                ${DB.getComments(post.id).slice(0, 2).map(c => {
+                  const commenter = DB.getUser(c.user_id);
+                  return `<p class="text-sm"><strong>${commenter.username}:</strong> ${c.content}</p>`;
+                }).join('')}
+                ${post.total_comments > 2 ? `<p class="text-xs text-gray-500 cursor-pointer hover:text-primary" onclick="alert('Mais comentários...')">Ver todos os ${post.total_comments} comentários</p>` : ''}
+              </div>
+
+              <!-- Adicionar comentário -->
+              <form onsubmit="addComment(event, ${post.id})" class="flex gap-2 mt-3">
+                <input 
+                  type="text" 
+                  placeholder="Escreva um comentário..." 
+                  class="flex-1 text-sm p-2 border rounded-md" 
+                  required
+                />
+                <button type="submit" class="text-primary text-sm font-medium">Enviar</button>
+              </form>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    // =====================================================
+    // ❤️ Curtir / Descurtir
+    // =====================================================
+    function toggleLike(postId) {
+      const existing = DB.likes.find(l => l.user_id === 1 && l.post_id === postId);
+      if (existing) {
+        DB.likes = DB.likes.filter(l => !(l.user_id === 1 && l.post_id === postId));
+      } else {
+        DB.likes.push({ user_id: 1, post_id: postId, created_at: new Date() });
+      }
+      DB.save();
+      renderFeed();
+    }
+
+    // =====================================================
+    // 💬 Adicionar comentário
+    // =====================================================
+    function addComment(e, postId) {
+      e.preventDefault();
+      const input = e.target.querySelector('input');
+      const content = input.value.trim();
+      if (!content) return;
+
+      const newId = Math.max(...DB.comments.map(c => c.id), 0) + 1;
+      DB.comments.push({
+        id: newId,
+        user_id: 1,
+        post_id: postId,
+        content,
+        created_at: new Date()
+      });
+      input.value = '';
+      DB.save();
+      renderFeed();
+    }
+
+    // =====================================================
+    // 👥 Mostrar quem curtiu
+    // =====================================================
+    function showLikes(postId) {
+      const likes = DB.getLikes(postId);
+      const list = document.getElementById('likesList');
+      list.innerHTML = likes.length > 0
+        ? likes.map(l => `<li class="flex items-center gap-2"><div class="w-6 h-6 bg-blue-500 rounded-full"></div> ${DB.getUser(l.user_id).username}</li>`).join('')
+        : '<li class="text-gray-500">Ninguém curtiu ainda.</li>';
+      document.getElementById('likesModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('likesModal').classList.add('hidden');
+    }
+
+    // =====================================================
+    // 📝 Criar post
+    // =====================================================
+    document.getElementById('postForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const imageUrl = document.getElementById('imageUrl').value.trim();
+      const caption = document.getElementById('caption').value.trim();
+      const userId = 1;
+
+      if (!imageUrl) return;
+
+      const newId = Math.max(...DB.posts.map(p => p.id), 0) + 1;
+      DB.posts.push({
+        id: newId,
+        user_id: userId,
+        image_url: imageUrl,
+        caption,
+        created_at: new Date()
+      });
+
+      document.getElementById('imageUrl').value = '';
+      document.getElementById('caption').value = '';
+      DB.save();
+      renderFeed();
+    });
+
+    // =====================================================
+    // 🕒 Formatar data
+    // =====================================================
+    function formatDate(date) {
+      const d = new Date(date);
+      const now = new Date();
+      const diff = now - d;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+
+      if (minutes < 1) return 'agora';
+      if (minutes < 60) return `há ${minutes}m`;
+      if (hours < 24) return `há ${hours}h`;
+      return `há ${days}d`;
+    }
+
+    // Inicializar
+    renderFeed();
+  </script>
+</body>
+</html>
